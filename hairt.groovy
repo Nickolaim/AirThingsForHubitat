@@ -28,7 +28,7 @@
 
 import java.text.DecimalFormat
 
-def userAgent() { 'HAirT/1.0.0' }  // Hubitat-AirThings -> HAirT
+static String userAgent() { 'HAirT/1.0.0' }  // Hubitat-AirThings -> HAirT
 
 metadata {
     definition(name: 'HAirT', namespace: 'nickolaim', author: 'Nick M') {
@@ -72,8 +72,8 @@ def refresh() {
     requestSensorData()
 }
 
-def requestSensorData() {
-    def data = requestSensorDataWithToken()
+void requestSensorData() {
+    boolean data = requestSensorDataWithToken()
     if (!data) {
         // If fails first time, assume issue with the token
         requestAccessToken()
@@ -81,7 +81,8 @@ def requestSensorData() {
     }
 }
 
-def sendEventUpdateTile(data, airThingsName, eventName, onScreenName, unit, tile, formatter) {
+String sendEventUpdateTile(Map data, String airThingsName, String eventName, String onScreenName,
+                           String unit, String tile, DecimalFormat formatter) {
     if (data.containsKey(airThingsName)) {
         def value = data[airThingsName]
         sendEventIfChanged(name: eventName, value: value)
@@ -92,7 +93,7 @@ def sendEventUpdateTile(data, airThingsName, eventName, onScreenName, unit, tile
     return tile
 }
 
-def requestSensorDataWithToken() {
+boolean requestSensorDataWithToken() {
     try {
         httpGet([
                 'uri'    : "https://ext-api.airthings.com/v1/devices/${serialNumber}/latest-samples",
@@ -102,11 +103,11 @@ def requestSensorDataWithToken() {
                 ],
         ]) { response ->
             if (response.status < 300) {
-                def formatterDec = new DecimalFormat("###.0")
-                def formatterInt = new DecimalFormat("###")
+                DecimalFormat formatterDec = new DecimalFormat("###.0")
+                DecimalFormat formatterInt = new DecimalFormat("###")
 
-                def data = response.data['data']
-                def tile = '<table style="display:inline;font-size:70%">'
+                Map data = response.data['data']
+                String tile = '<table style="display:inline;font-size:70%">'
 
                 tile = sendEventUpdateTile(data, 'co2', 'carbonDioxide', 'CO2', 'ppm', tile, formatterInt)
                 tile = sendEventUpdateTile(data, 'voc', 'voc', 'VOC', 'ppb', tile, formatterInt)
