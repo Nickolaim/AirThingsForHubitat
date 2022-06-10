@@ -1,19 +1,20 @@
 /**
  *
- *   File: hairt.groovy
+ *   File: AirThingsForHubitat.groovy
  *
  *  Copyright 2022 Nick M
  *
  *  To use:
- *     - Register AirThings app and get Client ID and Client Secret.  Follow https://developer.airthings.com/docs/api-getting-started/index.html
- *     - From the AirThings dashboard https://dashboard.airthings.com/devices get ID of the device
+ *     - Register AirThings app and get the Client ID and Client Secret.  Follow https://developer.airthings.com/docs/api-getting-started/index.html
+ *     - From the AirThings dashboard https://dashboard.airthings.com/devices get the ID of the device
  *     - Use the values in preferences
  *
  *  Notes:
- *     AirThings API for consumers has only one scope - `read:device:current_values`.
- *     As a result there is only one method that can be called - `https://ext-api.airthings.com/v1/devices/{serialNumber}/latest-samples`
+ *     AirThings API token for consumers has only one scope - `read:device:current_values`,
+ *     as a result there is only one method that can be called - `https://ext-api.airthings.com/v1/devices/{serialNumber}/latest-samples`
  *
  *  References:
+ *     - Repository: https://github.com/Nickolaim/AirThingsForHubitat/
  *     - AirThings documentation: https://developer.airthings.com/
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -28,10 +29,10 @@
 
 import java.text.DecimalFormat
 
-static String userAgent() { 'HAirT/1.0.0' }  // Hubitat-AirThings -> HAirT
+static String userAgent() { 'AirThingsForHubitat/1.0.0' }
 
 metadata {
-    definition(name: 'HAirT', namespace: 'nickolaim', author: 'Nick M') {
+    definition(name: 'AirThingsForHubitat', namespace: 'nickolaim', author: 'Nick M') {
         capability 'Battery'
         capability 'CarbonDioxideMeasurement'
         capability 'PressureMeasurement'
@@ -75,22 +76,20 @@ def refresh() {
 void requestSensorData() {
     boolean data = requestSensorDataWithToken()
     if (!data) {
-        // If fails first time, assume issue with the token
+        // If failed - refresh token and retry
         requestAccessToken()
         requestSensorDataWithToken()
     }
 }
 
-String sendEventUpdateTile(Map data, String airThingsName, String eventName, String onScreenName,
-                           String unit, String tile, DecimalFormat formatter) {
-    if (data.containsKey(airThingsName)) {
-        def value = data[airThingsName]
+void sendEventUpdateTile(Map data, String airThingsKey, String eventName, String onScreenName,
+                         String unit, StringBuilder sb, DecimalFormat formatter) {
+    if (data.containsKey(airThingsKey)) {
+        def value = data[airThingsKey]
         sendEventIfChanged(name: eventName, value: value)
-        tile +=  "<tr><td>${onScreenName}</td><td style='background-color: rgba(0, 255, 0, 0.0);'>" +
-                "${formatter.format(value)} ${unit}</td></tr>"
+        sb.append("<tr><td>${onScreenName}</td><td style='background-color: rgba(0, 255, 0, 0.0);'>")
+        sb.append("${formatter.format(value)} ${unit}</td></tr>")
     }
-
-    return tile
 }
 
 boolean requestSensorDataWithToken() {
@@ -103,27 +102,27 @@ boolean requestSensorDataWithToken() {
                 ],
         ]) { response ->
             if (response.status < 300) {
-                DecimalFormat formatterDec = new DecimalFormat("###.0")
-                DecimalFormat formatterInt = new DecimalFormat("###")
+                DecimalFormat decimalFormatter = new DecimalFormat("###.0")
+                DecimalFormat integerFormatter = new DecimalFormat("###")
 
                 Map data = response.data['data']
-                String tile = '<table style="display:inline;font-size:70%">'
+                StringBuilder sb = new StringBuilder('<table style="display:inline;font-size:70%">')
 
-                tile = sendEventUpdateTile(data, 'co2', 'carbonDioxide', 'CO2', 'ppm', tile, formatterInt)
-                tile = sendEventUpdateTile(data, 'voc', 'voc', 'VOC', 'ppb', tile, formatterInt)
-                tile = sendEventUpdateTile(data, 'radonShortTermAvg', 'radonShortTermAvg', 'Radon', 'pCi/L', tile, formatterDec)
-                tile = sendEventUpdateTile(data, 'humidity', 'humidity', 'Humidity', '%rh', tile, formatterInt)
-                tile = sendEventUpdateTile(data, 'temp', 'temperature', 'Temp', 'C', tile, formatterDec)
-                tile = sendEventUpdateTile(data, 'pm25', 'airQualityPM25', 'PM 2.5', 'µg/m³', tile, formatterInt)
-                tile = sendEventUpdateTile(data, 'pm1', 'airQualityPM1', 'PM 1', 'µg/m³', tile, formatterInt)
-                tile = sendEventUpdateTile(data, 'pressure', 'pressure', 'Pressure', 'hPa', tile, formatterInt)
-                tile = sendEventUpdateTile(data, 'battery', 'battery', 'Battery', '%', tile, formatterInt)
+                sendEventUpdateTile(data, 'co2', 'carbonDioxide', 'CO2', 'ppm', sb, integerFormatter)
+                sendEventUpdateTile(data, 'voc', 'voc', 'VOC', 'ppb', sb, integerFormatter)
+                sendEventUpdateTile(data, 'radonShortTermAvg', 'radonShortTermAvg', 'Radon', 'pCi/L', sb, decimalFormatter)
+                sendEventUpdateTile(data, 'humidity', 'humidity', 'Humidity', '%rh', sb, integerFormatter)
+                sendEventUpdateTile(data, 'temp', 'temperature', 'Temp', 'C', sb, decimalFormatter)
+                sendEventUpdateTile(data, 'pm25', 'airQualityPM25', 'PM 2.5', 'µg/m³', sb, integerFormatter)
+                sendEventUpdateTile(data, 'pm1', 'airQualityPM1', 'PM 1', 'µg/m³', sb, integerFormatter)
+                sendEventUpdateTile(data, 'pressure', 'pressure', 'Pressure', 'hPa', sb, integerFormatter)
+                sendEventUpdateTile(data, 'battery', 'battery', 'Battery', '%', sb, integerFormatter)
 
-                tile += '</table'
-                sendEventIfChanged(name: 'tile', value: tile)
+                sb.append('</table')
+                sendEventIfChanged(name: 'tile', value: sb.toString())
 
             } else {
-                log.error "Failed to receive latest sample.  Response status code: ${response.status}, data: ${response.data}"
+                log.error "Failed to receive samples.  Response status code: ${response.status}, data: ${response.data}"
                 return false
             }
         }
@@ -131,6 +130,7 @@ boolean requestSensorDataWithToken() {
         return true
     } catch (Exception e) {
         log.error "Exception while getting sensor data: ${e}"
+        log.error e.getStackTrace()
     }
     return false
 }
@@ -157,6 +157,7 @@ def requestAccessToken() {
         }
     } catch (Exception e) {
         log.error "Exception while requesting token: ${e}"
+        log.error e.getStackTrace()
     }
 }
 

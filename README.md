@@ -1,3 +1,3 @@
-Hubitat driver for AirThings API
+# Hubitat driver for [AirThings](https://www.airthings.com) API 
 
-See the driver header comments for more information.
+See the [source code header](/AirThingsForHubitat.groovy) for the instructions.
